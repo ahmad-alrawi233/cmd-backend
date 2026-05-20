@@ -28,17 +28,25 @@ app.get("/", (req, res) => {
 
 app.post("/upload", upload.single("image"), async (req, res) => {
   try {
+    console.log("Upload request received");
+
     if (!req.file) {
       return res.status(400).json({
         error: "No image uploaded",
       });
     }
 
+    console.log("File received:", req.file.originalname);
+
     const result = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
-        { folder: "cmd-projects" },
+        {
+          folder: "cmd-projects",
+          resource_type: "image",
+        },
         (error, result) => {
           if (error) {
+            console.log("Cloudinary error:", error.message);
             reject(error);
           } else {
             resolve(result);
@@ -53,6 +61,8 @@ app.post("/upload", upload.single("image"), async (req, res) => {
       imageUrl: result.secure_url,
     });
   } catch (error) {
+    console.log("Upload failed:", error.message);
+
     return res.status(500).json({
       error: "Upload failed",
       details: error.message || "Unknown error",
@@ -63,5 +73,5 @@ app.post("/upload", upload.single("image"), async (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
- console.log("Backend running on port " + PORT);
+  console.log("Backend running on port " + PORT);
 });
