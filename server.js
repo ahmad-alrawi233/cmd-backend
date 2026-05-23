@@ -3,17 +3,10 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
-const cloudinary = require("cloudinary").v2;
 
 const app = express();
 
 app.use(cors());
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -31,34 +24,48 @@ app.post("/upload", upload.single("image"), async (req, res) => {
     console.log("Upload request received");
 
     if (!req.file) {
-      return res.status(400).json({
-        error: "No image uploaded",
+      return res.status(400).json({ error: "No image uploaded" });
+    }
+
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    const uploadPreset = "cmd_upload";
+
+    if (!cloudName) {
+      return res.status(500).json({
+        error: "Cloudinary cloud name missing",
       });
     }
 
-    console.log("File received:", req.file.originalname);
+    const formData = new FormData();
 
-    const result = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        {
-          folder: "cmd-projects",
-          resource_type: "image",
-        },
-        (error, result) => {
-          if (error) {
-            console.log("Cloudinary error:", error.message);
-            reject(error);
-          } else {
-            resolve(result);
-          }
-        }
-      );
-
-      stream.end(req.file.buffer);
+    const blob = new Blob([req.file.buffer], {
+      type: req.file.mimetype,
     });
 
+    formData.append("file", blob, req.file.originalname);
+    formData.append("upload_preset", uploadPreset);
+    formData.append("folder", "cmd-projects");
+
+    const cloudinaryResponse = await fetch(
+      'https://api.cloudinary.com/v1_1/${cloudName}/image/upload',
+      {
+        method: "POST",
+        body: formData,
+      }
+    );
+
+    const data = await cloudinaryResponse.json();
+
+    if (!cloudinaryResponse.ok) {
+      console.log("Cloudinary error:", data);
+      return res.status(500).json({
+        error: "Upload failed",
+        details: data.error?.message || "Cloudinary upload failed",
+      });
+    }
+
     return res.status(200).json({
-      imageUrl: result.secure_url,
+      imageUrl: data.secure_url,
     });
   } catch (error) {
     console.log("Upload failed:", error.message);
