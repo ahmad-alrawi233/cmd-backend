@@ -11,6 +11,8 @@ app.use(cors());
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
 const upload = multer({
@@ -36,14 +38,23 @@ app.post("/upload", upload.single("image"), async (req, res) => {
 
     console.log("File received:", req.file.originalname);
 
-    const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString(
-      "base64"
-    )}`;
+    const result = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: "cmd-projects",
+          resource_type: "image",
+        },
+        (error, result) => {
+          if (error) {
+            console.log("Cloudinary error:", error.message);
+            reject(error);
+          } else {
+            resolve(result);
+          }
+        }
+      );
 
-    const result = await cloudinary.uploader.upload(base64Image, {
-      folder: "projects",
-      upload_preset: "cmd_upload",
-      resource_type: "image",
+      stream.end(req.file.buffer);
     });
 
     return res.status(200).json({
